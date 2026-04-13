@@ -1,0 +1,110 @@
+services:
+  api:
+    build: ../services/api
+    container_name: api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../services/api:/app
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - app-network
+    env_file:
+      - ../services/api/.env
+
+  payment-worker-metrics:
+    build: ../services/payment-worker
+    container_name: payment-worker-metrics
+    volumes:
+      - ../services/payment-worker:/app
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - app-network
+    environment:
+      - METRICS_ENABLED=true
+    ports:
+      - "3001:3001"
+
+  payment-worker:
+    build: ../services/payment-worker
+    volumes:
+      - ../services/payment-worker:/app
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - app-network
+    environment:
+      - METRICS_ENABLED=false
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3002:3000" # Mapeando para a 3002 na sua máquina para não conflitar com a API
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin # Senha padrão simples para dev
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  redis:
+    image: redis:7
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: orders
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+
+networks:
+  app-network:
+    driver: bridge

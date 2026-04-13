@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+*.log
+
+# Docker
+postgres_data
+
+# OS
+.DS_Store
+Thumbs.db
